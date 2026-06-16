@@ -40,7 +40,11 @@ ui.loadMoreBtn.addEventListener("click", loadMoreUpcoming);
 await bootstrap();
 
 async function bootstrap() {
-  populateCountryOptions(state.guest?.country_code || "");
+  try {
+    populateCountryOptions(state.guest?.country_code || "");
+  } catch (error) {
+    console.warn("Country options fallback activated:", error);
+  }
   renderGuestBadge();
   await Promise.all([loadTodayMatches(), loadUpcomingMatches(), loadPastMatches()]);
 }
@@ -72,12 +76,16 @@ function populateCountryOptions(selectedCode = "") {
 
 function getCountryOptions() {
   if (typeof Intl !== "undefined" && Intl.DisplayNames && Intl.supportedValuesOf) {
-    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
-    return Intl.supportedValuesOf("region")
-      .filter((code) => /^[A-Z]{2}$/.test(code))
-      .map((code) => ({ code, name: displayNames.of(code) || code }))
-      .filter((item) => item.name && item.name !== item.code)
-      .sort((a, b) => a.name.localeCompare(b.name));
+    try {
+      const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+      return Intl.supportedValuesOf("region")
+        .filter((code) => /^[A-Z]{2}$/.test(code))
+        .map((code) => ({ code, name: displayNames.of(code) || code }))
+        .filter((item) => item.name && item.name !== item.code)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      // Fall back to a static list if runtime Intl region support is partial.
+    }
   }
 
   return [
