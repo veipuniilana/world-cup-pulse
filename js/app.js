@@ -40,8 +40,77 @@ ui.loadMoreBtn.addEventListener("click", loadMoreUpcoming);
 await bootstrap();
 
 async function bootstrap() {
+  populateCountryOptions(state.guest?.country_code || "");
   renderGuestBadge();
   await Promise.all([loadTodayMatches(), loadUpcomingMatches(), loadPastMatches()]);
+}
+
+function populateCountryOptions(selectedCode = "") {
+  const select = ui.countryInput;
+  if (!select) return;
+
+  const previousSelection = selectedCode || select.value || "";
+  const options = getCountryOptions();
+
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "Select Country";
+  select.appendChild(placeholder);
+
+  options.forEach(({ code, name }) => {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = `${name} (${code})`;
+    select.appendChild(option);
+  });
+
+  if (previousSelection) {
+    select.value = previousSelection;
+  }
+}
+
+function getCountryOptions() {
+  if (typeof Intl !== "undefined" && Intl.DisplayNames && Intl.supportedValuesOf) {
+    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
+    return Intl.supportedValuesOf("region")
+      .filter((code) => /^[A-Z]{2}$/.test(code))
+      .map((code) => ({ code, name: displayNames.of(code) || code }))
+      .filter((item) => item.name && item.name !== item.code)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  return [
+    { code: "AR", name: "Argentina" },
+    { code: "AU", name: "Australia" },
+    { code: "BE", name: "Belgium" },
+    { code: "BR", name: "Brazil" },
+    { code: "CA", name: "Canada" },
+    { code: "DE", name: "Germany" },
+    { code: "DK", name: "Denmark" },
+    { code: "EG", name: "Egypt" },
+    { code: "ES", name: "Spain" },
+    { code: "FR", name: "France" },
+    { code: "GB", name: "England" },
+    { code: "GH", name: "Ghana" },
+    { code: "HR", name: "Croatia" },
+    { code: "IT", name: "Italy" },
+    { code: "JP", name: "Japan" },
+    { code: "KR", name: "South Korea" },
+    { code: "MA", name: "Morocco" },
+    { code: "MX", name: "Mexico" },
+    { code: "NL", name: "Netherlands" },
+    { code: "NG", name: "Nigeria" },
+    { code: "PL", name: "Poland" },
+    { code: "PT", name: "Portugal" },
+    { code: "RS", name: "Serbia" },
+    { code: "SA", name: "Saudi Arabia" },
+    { code: "SN", name: "Senegal" },
+    { code: "TN", name: "Tunisia" },
+    { code: "TR", name: "Turkey" },
+    { code: "US", name: "USA" },
+    { code: "UY", name: "Uruguay" }
+  ].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function loadGuest() {
@@ -225,7 +294,7 @@ function renderMatchCard(match, isPast) {
             <button class="btn-vote" data-vote="draw">Vote Draw</button>
             <button class="btn-vote" data-vote="away">Vote ${match.away_team}</button>
           </div>
-          <div class="vote-summary" id="vote-${match.id}">Loading votes...</div>
+          <div class="vote-summary" id="vote-${match.id}" data-home="${match.home_team}" data-away="${match.away_team}">Loading votes...</div>
         `}
         <button class="btn btn-sm btn-outline-light mt-2" data-chat="1">Open Chat</button>
       </div>
@@ -275,6 +344,8 @@ async function onVote(match, voteType) {
 async function loadVoteSummary(matchId) {
   const target = document.getElementById(`vote-${matchId}`);
   if (!target) return;
+  const homeTeam = target.dataset.home || "Home";
+  const awayTeam = target.dataset.away || "Away";
 
   const { data, error } = await supabase
     .from("predictions")
@@ -295,7 +366,12 @@ async function loadVoteSummary(matchId) {
     return;
   }
 
-  target.textContent = `Votes: Home ${pct(counts.home, total)} | Draw ${pct(counts.draw, total)} | Away ${pct(counts.away, total)} (${total} total)`;
+  target.innerHTML = `
+    <span class="vote-pill">${homeTeam}: <strong>${pct(counts.home, total)}</strong></span>
+    <span class="vote-pill">Draw: <strong>${pct(counts.draw, total)}</strong></span>
+    <span class="vote-pill">${awayTeam}: <strong>${pct(counts.away, total)}</strong></span>
+    <span class="vote-total">${total} total votes</span>
+  `;
 }
 
 function pct(count, total) {
