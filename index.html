@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Cup Pulse</title>
+  <meta name="description" content="World Cup matches, predictions, and live chat." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;600;700;800&display=swap"
+    rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <header class="hero-wrap">
+    <div class="container py-4 py-md-5">
+      <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div>
+          <p class="kicker mb-1">FIFA World Cup Hub</p>
+          <h1 class="display-title mb-2">World Cup Pulse</h1>
+          <p class="hero-subtitle mb-0">Upcoming fixtures, past results, fan predictions, and live per-match chat.</p>
+        </div>
+        <button id="joinBtn" class="btn btn-join">Join Predictions</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container py-4 pb-5">
+    <section class="mb-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="section-title mb-0">Upcoming Matches</h2>
+        <span id="userBadge" class="user-badge d-none"></span>
+      </div>
+      <div id="upcomingList" class="row g-3"></div>
+    </section>
+
+    <section class="mb-4">
+      <h2 class="section-title mb-3">Past Results</h2>
+      <div id="pastList" class="row g-3"></div>
+    </section>
+  </main>
+
+  <aside id="chatPanel" class="chat-panel">
+    <div class="chat-header">
+      <div>
+        <p class="chat-label mb-0">Match Room</p>
+        <h3 id="chatMatchTitle" class="chat-title mb-0">Select a match</h3>
+      </div>
+      <button id="closeChatBtn" class="btn btn-sm btn-outline-light">Close</button>
+    </div>
+    <div id="chatMessages" class="chat-messages"></div>
+    <form id="chatForm" class="chat-form">
+      <input id="chatInput" class="form-control" type="text" maxlength="280" placeholder="Type your message..."
+        required />
+      <button class="btn btn-send" type="submit">Send</button>
+    </form>
+  </aside>
+
+  <div id="joinModal" class="join-modal d-none">
+    <div class="join-card">
+      <h3 class="join-title">Join the Fan Room</h3>
+      <p class="join-subtitle">Enter your name and country to vote and chat.</p>
+      <form id="joinForm" class="vstack gap-2">
+        <input id="nameInput" class="form-control" type="text" maxlength="40" placeholder="Your Name" required />
+        <select id="countryInput" class="form-select" required>
+          <option value="">Select Country</option>
+          <option value="PT">Portugal</option>
+          <option value="AR">Argentina</option>
+          <option value="BR">Brazil</option>
+          <option value="FR">France</option>
+          <option value="DE">Germany</option>
+          <option value="ES">Spain</option>
+          <option value="GB">England</option>
+          <option value="US">USA</option>
+          <option value="MA">Morocco</option>
+          <option value="JP">Japan</option>
+        </select>
+        <div class="d-flex gap-2 mt-2">
+          <button type="submit" class="btn btn-join flex-grow-1">Save</button>
+          <button id="cancelJoinBtn" type="button" class="btn btn-outline-secondary flex-grow-1">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+
+</html>

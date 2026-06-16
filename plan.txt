@@ -1,0 +1,15 @@
+World Cup Pulse Implementation Plan (Started)
+
+Done:
+- Built first frontend version (matches, results, predictions, realtime chat panel)
+- Added guest join flow (name + country)
+- Added Portugal uniqueness (match pinning + card style + supporter badge in chat)
+- Added Supabase schema and seed SQL
+- Added Edge Function template to sync matches from football-data API
+
+Next:
+- Configure Supabase keys in js/config.js
+- Run schema.sql and seed.sql in Supabase SQL editor
+- Enable Realtime for chat_messages
+- Deploy frontend to Cloudflare Pages
+- Optional: deploy sync-matches edge function and schedule refresh
