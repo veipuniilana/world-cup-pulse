@@ -424,7 +424,7 @@ async function openChatPanel(match) {
     await supabase.removeChannel(state.chatChannel);
   }
 
-  await loadChatHistory(match.id);
+  await loadChatHistory(match);
 
   const channelName = `match-room-${match.id}`;
   state.chatChannel = supabase
@@ -446,13 +446,15 @@ function closeChatPanel() {
   ui.chatPanel.classList.remove("open");
 }
 
-async function loadChatHistory(matchId) {
+async function loadChatHistory(match) {
+  const relatedMatchIds = await findRelatedMatchIds(match);
+
   const { data, error } = await supabase
     .from("chat_messages")
     .select("*")
-    .eq("match_id", matchId)
+    .in("match_id", relatedMatchIds)
     .order("created_at", { ascending: true })
-    .limit(100);
+    .limit(200);
 
   if (error) {
     ui.chatMessages.innerHTML = `<p class="text-warning">Could not load chat.</p>`;
@@ -461,6 +463,27 @@ async function loadChatHistory(matchId) {
 
   data.forEach(appendChatMessage);
   ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
+}
+
+async function findRelatedMatchIds(match) {
+  const matchIds = new Set([match.id]);
+  const kickoff = new Date(match.kickoff_at);
+  const windowStart = new Date(kickoff.getTime() - 12 * 60 * 60 * 1000).toISOString();
+  const windowEnd = new Date(kickoff.getTime() + 12 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("matches")
+    .select("id")
+    .eq("home_team", match.home_team)
+    .eq("away_team", match.away_team)
+    .gte("kickoff_at", windowStart)
+    .lte("kickoff_at", windowEnd);
+
+  if (!error && data?.length) {
+    data.forEach((row) => matchIds.add(row.id));
+  }
+
+  return Array.from(matchIds);
 }
 
 async function onChatSubmit(event) {
