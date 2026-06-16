@@ -252,6 +252,10 @@ function showDataError(target, message) {
 async function openChatPanel(match) {
   state.selectedMatch = match;
   ui.chatPanel.classList.add("open");
+  setTimeout(() => {
+    ui.chatInput?.focus();
+    ui.chatInput?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, 50);
   ui.chatMatchTitle.textContent = `${match.home_team} vs ${match.away_team}`;
   ui.chatMessages.innerHTML = "";
 
