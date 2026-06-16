@@ -30,12 +30,20 @@
   </header>
 
   <main class="container py-4 pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div></div>
+      <span id="userBadge" class="user-badge d-none"></span>
+    </div>
+
+    <section class="mb-4" id="todaySection" style="display: none;">
+      <h2 class="section-title mb-3">Today & Current</h2>
+      <div id="todayList" class="row g-3"></div>
+    </section>
+
     <section class="mb-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="section-title mb-0">Upcoming Matches</h2>
-        <span id="userBadge" class="user-badge d-none"></span>
-      </div>
+      <h2 class="section-title mb-3">Upcoming Matches</h2>
       <div id="upcomingList" class="row g-3"></div>
+      <button id="loadMoreBtn" class="btn btn-outline-light mt-3" style="display: none;">Load More Matches</button>
     </section>
 
     <section class="mb-4">

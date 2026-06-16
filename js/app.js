@@ -4,11 +4,16 @@ import { countryName, flagEmoji } from "./countries.js";
 const state = {
   guest: loadGuest(),
   selectedMatch: null,
-  chatChannel: null
+  chatChannel: null,
+  upcomingPage: 0,
+  upcomingPageSize: 10
 };
 
 const ui = {
+  todaySection: document.getElementById("todaySection"),
+  todayList: document.getElementById("todayList"),
   upcomingList: document.getElementById("upcomingList"),
+  loadMoreBtn: document.getElementById("loadMoreBtn"),
   pastList: document.getElementById("pastList"),
   joinBtn: document.getElementById("joinBtn"),
   userBadge: document.getElementById("userBadge"),
@@ -30,12 +35,13 @@ ui.cancelJoinBtn.addEventListener("click", () => toggleJoinModal(false));
 ui.closeChatBtn.addEventListener("click", closeChatPanel);
 ui.joinForm.addEventListener("submit", onJoinSubmit);
 ui.chatForm.addEventListener("submit", onChatSubmit);
+ui.loadMoreBtn.addEventListener("click", loadMoreUpcoming);
 
 await bootstrap();
 
 async function bootstrap() {
   renderGuestBadge();
-  await Promise.all([loadUpcomingMatches(), loadPastMatches()]);
+  await Promise.all([loadTodayMatches(), loadUpcomingMatches(), loadPastMatches()]);
 }
 
 function loadGuest() {
@@ -78,14 +84,48 @@ function renderGuestBadge() {
   ui.userBadge.classList.remove("d-none");
 }
 
-async function loadUpcomingMatches() {
-  const now = new Date().toISOString();
+async function loadTodayMatches() {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
+  const windowEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase
     .from("matches")
     .select("*")
-    .gte("kickoff_at", now)
-    .order("kickoff_at", { ascending: true })
-    .limit(30);
+    .gte("kickoff_at", windowStart)
+    .lte("kickoff_at", windowEnd)
+    .order("kickoff_at", { ascending: true });
+
+  if (error) return showDataError(ui.todayList, error.message);
+
+  if (!data?.length) {
+    ui.todaySection.style.display = "none";
+    return;
+  }
+
+  const sorted = data.sort((a, b) => {
+    const aPT = involvesPortugal(a);
+    const bPT = involvesPortugal(b);
+    if (aPT && !bPT) return -1;
+    if (!aPT && bPT) return 1;
+    return new Date(a.kickoff_at) - new Date(b.kickoff_at);
+  });
+
+  ui.todayList.innerHTML = "";
+  ui.todaySection.style.display = "block";
+  sorted.forEach((match) => ui.todayList.appendChild(renderMatchCard(match, false)));
+}
+
+async function loadUpcomingMatches() {
+  state.upcomingPage = 0;
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .gt("kickoff_at", windowEnd)
+    .order("kickoff_at", { ascending: true });
 
   if (error) return showDataError(ui.upcomingList, error.message);
 
@@ -98,12 +138,49 @@ async function loadUpcomingMatches() {
   });
 
   ui.upcomingList.innerHTML = "";
-  if (!sorted.length) {
-    ui.upcomingList.innerHTML = `<p class="text-light-emphasis">No upcoming matches loaded yet.</p>`;
+  const pageStart = state.upcomingPage * state.upcomingPageSize;
+  const pageEnd = pageStart + state.upcomingPageSize;
+  const pageMatches = sorted.slice(pageStart, pageEnd);
+
+  if (!pageMatches.length) {
+    ui.upcomingList.innerHTML = `<p class="text-light-emphasis">No more upcoming matches.</p>`;
+    ui.loadMoreBtn.style.display = "none";
     return;
   }
 
-  sorted.forEach((match) => ui.upcomingList.appendChild(renderMatchCard(match, false)));
+  pageMatches.forEach((match) => ui.upcomingList.appendChild(renderMatchCard(match, false)));
+
+  ui.loadMoreBtn.style.display = pageEnd < sorted.length ? "block" : "none";
+}
+
+async function loadMoreUpcoming() {
+  state.upcomingPage += 1;
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("matches")
+    .select("*")
+    .gt("kickoff_at", windowEnd)
+    .order("kickoff_at", { ascending: true });
+
+  if (error) return;
+
+  const sorted = (data || []).sort((a, b) => {
+    const aPT = involvesPortugal(a);
+    const bPT = involvesPortugal(b);
+    if (aPT && !bPT) return -1;
+    if (!aPT && bPT) return 1;
+    return new Date(a.kickoff_at) - new Date(b.kickoff_at);
+  });
+
+  const pageStart = state.upcomingPage * state.upcomingPageSize;
+  const pageEnd = pageStart + state.upcomingPageSize;
+  const pageMatches = sorted.slice(pageStart, pageEnd);
+
+  pageMatches.forEach((match) => ui.upcomingList.appendChild(renderMatchCard(match, false)));
+
+  ui.loadMoreBtn.style.display = pageEnd < sorted.length ? "block" : "none";
 }
 
 async function loadPastMatches() {
