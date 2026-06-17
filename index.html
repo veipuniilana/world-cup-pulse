@@ -35,8 +35,28 @@
       <span id="userBadge" class="user-badge d-none"></span>
     </div>
 
+    <section class="winner-section mb-4">
+      <div class="winner-card">
+        <div class="winner-header">
+          <div>
+            <p class="winner-kicker mb-1">Champion Forecast</p>
+            <h2 class="section-title mb-1">Who Wins The World Cup?</h2>
+            <p class="winner-subtitle mb-0">Vote once, update anytime. Live fan percentages update instantly.</p>
+          </div>
+          <div id="winnerTotal" class="winner-total">0 total votes</div>
+        </div>
+        <form id="winnerForm" class="winner-form">
+          <select id="winnerTeamSelect" class="form-select" required>
+            <option value="">Select your champion</option>
+          </select>
+          <button id="winnerVoteBtn" type="submit" class="btn btn-join">Vote Winner</button>
+        </form>
+        <div id="winnerSummary" class="winner-summary">Loading winner votes...</div>
+      </div>
+    </section>
+
     <section class="mb-4" id="todaySection" style="display: none;">
-      <h2 class="section-title mb-3">Today & Current</h2>
+      <h2 class="section-title mb-3">Today Matches</h2>
       <div id="todayList" class="row g-3"></div>
     </section>
 
@@ -47,7 +67,7 @@
     </section>
 
     <section class="mb-4">
-      <h2 class="section-title mb-3">Past Results</h2>
+      <h2 class="section-title mb-3">Yesterday Results</h2>
       <div id="pastList" class="row g-3"></div>
     </section>
   </main>

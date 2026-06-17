@@ -6,7 +6,8 @@ const state = {
   selectedMatch: null,
   chatChannel: null,
   upcomingPage: 0,
-  upcomingPageSize: 10
+  upcomingPageSize: 6,
+  upcomingMatches: []
 };
 
 const ui = {
@@ -15,6 +16,11 @@ const ui = {
   upcomingList: document.getElementById("upcomingList"),
   loadMoreBtn: document.getElementById("loadMoreBtn"),
   pastList: document.getElementById("pastList"),
+  winnerForm: document.getElementById("winnerForm"),
+  winnerTeamSelect: document.getElementById("winnerTeamSelect"),
+  winnerSummary: document.getElementById("winnerSummary"),
+  winnerTotal: document.getElementById("winnerTotal"),
+  winnerVoteBtn: document.getElementById("winnerVoteBtn"),
   joinBtn: document.getElementById("joinBtn"),
   userBadge: document.getElementById("userBadge"),
   joinModal: document.getElementById("joinModal"),
@@ -36,6 +42,7 @@ ui.closeChatBtn.addEventListener("click", closeChatPanel);
 ui.joinForm.addEventListener("submit", onJoinSubmit);
 ui.chatForm.addEventListener("submit", onChatSubmit);
 ui.loadMoreBtn.addEventListener("click", loadMoreUpcoming);
+ui.winnerForm?.addEventListener("submit", onWinnerVoteSubmit);
 
 await bootstrap();
 
@@ -46,7 +53,60 @@ async function bootstrap() {
     console.warn("Country options fallback activated:", error);
   }
   renderGuestBadge();
-  await Promise.all([loadTodayMatches(), loadUpcomingMatches(), loadPastMatches()]);
+  await Promise.all([loadTodayMatches(), loadUpcomingMatches(), loadPastMatches(), loadWinnerPoll()]);
+}
+
+function localDayBounds() {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+  return {
+    startOfYesterday,
+    startOfToday,
+    startOfTomorrow
+  };
+}
+
+function normalizeCountryCode(code) {
+  if (!code) return "XX";
+  const upper = String(code).trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(upper)) return upper;
+
+  const map = {
+    POR: "PT",
+    ARG: "AR",
+    BRA: "BR",
+    FRA: "FR",
+    GER: "DE",
+    ESP: "ES",
+    ENG: "GB",
+    USA: "US",
+    MAR: "MA",
+    JPN: "JP",
+    NED: "NL",
+    CRO: "HR",
+    BEL: "BE",
+    DEN: "DK",
+    POL: "PL",
+    MEX: "MX",
+    URU: "UY",
+    KOR: "KR",
+    AUS: "AU",
+    SEN: "SN",
+    TUN: "TN",
+    KSA: "SA",
+    SRB: "RS",
+    CMR: "CM",
+    GHA: "GH",
+    NGA: "NG",
+    EGY: "EG"
+  };
+
+  return map[upper] || "XX";
 }
 
 function populateCountryOptions(selectedCode = "") {
@@ -156,21 +216,22 @@ function renderGuestBadge() {
     return;
   }
 
-  const pt = state.guest.country_code === "PT" ? " · Portugal Supporter" : "";
-  ui.userBadge.textContent = `${flagEmoji(state.guest.country_code)} ${state.guest.display_name}${pt}`;
+  const guestCode = normalizeCountryCode(state.guest.country_code);
+  const pt = guestCode === "PT" ? " · GOAT fan" : "";
+  ui.userBadge.textContent = `${flagEmoji(guestCode)} ${state.guest.display_name}${pt}`;
   ui.userBadge.classList.remove("d-none");
 }
 
 async function loadTodayMatches() {
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
-  const windowEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
+  const { startOfToday, startOfTomorrow } = localDayBounds();
+  const windowStart = startOfToday.toISOString();
+  const windowEnd = startOfTomorrow.toISOString();
 
   const { data, error } = await supabase
     .from("matches")
     .select("*")
     .gte("kickoff_at", windowStart)
-    .lte("kickoff_at", windowEnd)
+    .lt("kickoff_at", windowEnd)
     .order("kickoff_at", { ascending: true });
 
   if (error) return showDataError(ui.todayList, error.message);
@@ -195,13 +256,13 @@ async function loadTodayMatches() {
 
 async function loadUpcomingMatches() {
   state.upcomingPage = 0;
-  const now = new Date();
-  const windowEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
+  const { startOfTomorrow } = localDayBounds();
+  const windowStart = startOfTomorrow.toISOString();
 
   const { data, error } = await supabase
     .from("matches")
     .select("*")
-    .gt("kickoff_at", windowEnd)
+    .gte("kickoff_at", windowStart)
     .order("kickoff_at", { ascending: true });
 
   if (error) return showDataError(ui.upcomingList, error.message);
@@ -214,10 +275,10 @@ async function loadUpcomingMatches() {
     return new Date(a.kickoff_at) - new Date(b.kickoff_at);
   });
 
+  state.upcomingMatches = sorted;
   ui.upcomingList.innerHTML = "";
-  const pageStart = state.upcomingPage * state.upcomingPageSize;
-  const pageEnd = pageStart + state.upcomingPageSize;
-  const pageMatches = sorted.slice(pageStart, pageEnd);
+
+  const pageMatches = getUpcomingPageSlice();
 
   if (!pageMatches.length) {
     ui.upcomingList.innerHTML = `<p class="text-light-emphasis">No more upcoming matches.</p>`;
@@ -227,47 +288,39 @@ async function loadUpcomingMatches() {
 
   pageMatches.forEach((match) => ui.upcomingList.appendChild(renderMatchCard(match, false)));
 
-  ui.loadMoreBtn.style.display = pageEnd < sorted.length ? "block" : "none";
+  ui.loadMoreBtn.style.display = hasMoreUpcoming() ? "block" : "none";
 }
 
 async function loadMoreUpcoming() {
+  if (!state.upcomingMatches.length) return;
+
   state.upcomingPage += 1;
-  const now = new Date();
-  const windowEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
-
-  const { data, error } = await supabase
-    .from("matches")
-    .select("*")
-    .gt("kickoff_at", windowEnd)
-    .order("kickoff_at", { ascending: true });
-
-  if (error) return;
-
-  const sorted = (data || []).sort((a, b) => {
-    const aPT = involvesPortugal(a);
-    const bPT = involvesPortugal(b);
-    if (aPT && !bPT) return -1;
-    if (!aPT && bPT) return 1;
-    return new Date(a.kickoff_at) - new Date(b.kickoff_at);
-  });
-
-  const pageStart = state.upcomingPage * state.upcomingPageSize;
-  const pageEnd = pageStart + state.upcomingPageSize;
-  const pageMatches = sorted.slice(pageStart, pageEnd);
+  const pageMatches = getUpcomingPageSlice();
 
   pageMatches.forEach((match) => ui.upcomingList.appendChild(renderMatchCard(match, false)));
+  ui.loadMoreBtn.style.display = hasMoreUpcoming() ? "block" : "none";
+}
 
-  ui.loadMoreBtn.style.display = pageEnd < sorted.length ? "block" : "none";
+function getUpcomingPageSlice() {
+  const pageStart = state.upcomingPage * state.upcomingPageSize;
+  const pageEnd = pageStart + state.upcomingPageSize;
+  return state.upcomingMatches.slice(pageStart, pageEnd);
+}
+
+function hasMoreUpcoming() {
+  const shown = (state.upcomingPage + 1) * state.upcomingPageSize;
+  return shown < state.upcomingMatches.length;
 }
 
 async function loadPastMatches() {
-  const now = new Date().toISOString();
+  const { startOfYesterday, startOfToday } = localDayBounds();
   const { data, error } = await supabase
     .from("matches")
     .select("*")
-    .lt("kickoff_at", now)
+    .gte("kickoff_at", startOfYesterday.toISOString())
+    .lt("kickoff_at", startOfToday.toISOString())
     .order("kickoff_at", { ascending: false })
-    .limit(30);
+    .limit(20);
 
   if (error) return showDataError(ui.pastList, error.message);
 
@@ -286,15 +339,17 @@ function renderMatchCard(match, isPast) {
 
   const ptClass = involvesPortugal(match) ? "portugal" : "";
   const kickoff = new Date(match.kickoff_at).toLocaleString();
+  const homeCode = normalizeCountryCode(match.home_code);
+  const awayCode = normalizeCountryCode(match.away_code);
   const score = isPast
-    ? `<div class="fw-bold">${match.home_score ?? "-"} : ${match.away_score ?? "-"}</div>`
+    ? `<div class="scoreline">${match.home_score ?? "-"} : ${match.away_score ?? "-"}</div>`
     : "";
 
   col.innerHTML = `
     <article class="match-card ${ptClass}">
       <div class="match-body">
         <div class="match-top">${match.stage || "Group Stage"} · ${kickoff}</div>
-        <div class="match-teams">${flagEmoji(match.home_code)} ${match.home_team} vs ${flagEmoji(match.away_code)} ${match.away_team}</div>
+        <div class="match-teams">${flagEmoji(homeCode)} ${match.home_team} vs ${flagEmoji(awayCode)} ${match.away_team}</div>
         ${score}
         ${isPast ? "" : `
           <div class="prediction-row">
@@ -302,8 +357,8 @@ function renderMatchCard(match, isPast) {
             <button class="btn-vote" data-vote="draw">Vote Draw</button>
             <button class="btn-vote" data-vote="away">Vote ${match.away_team}</button>
           </div>
-          <div class="vote-summary" id="vote-${match.id}" data-home="${match.home_team}" data-away="${match.away_team}">Loading votes...</div>
         `}
+        <div class="vote-summary" id="vote-${match.id}" data-home="${match.home_team}" data-away="${match.away_team}">Loading votes...</div>
         <button class="btn btn-sm btn-outline-light mt-2" data-chat="1">Open Chat</button>
       </div>
     </article>
@@ -316,14 +371,15 @@ function renderMatchCard(match, isPast) {
     col.querySelectorAll("[data-vote]").forEach((btn) => {
       btn.addEventListener("click", () => onVote(match, btn.dataset.vote));
     });
-    loadVoteSummary(match.id);
   }
+
+  loadVoteSummary(match.id);
 
   return col;
 }
 
 function involvesPortugal(match) {
-  return match.home_code === "PT" || match.away_code === "PT";
+  return normalizeCountryCode(match.home_code) === "PT" || normalizeCountryCode(match.away_code) === "PT";
 }
 
 async function onVote(match, voteType) {
@@ -333,7 +389,7 @@ async function onVote(match, voteType) {
     match_id: match.id,
     guest_id: state.guest.guest_id,
     guest_name: state.guest.display_name,
-    country_code: state.guest.country_code,
+    country_code: normalizeCountryCode(state.guest.country_code),
     vote_type: voteType
   };
 
@@ -497,9 +553,9 @@ async function onChatSubmit(event) {
   const payload = {
     match_id: state.selectedMatch.id,
     guest_name: state.guest.display_name,
-    country_code: state.guest.country_code,
+    country_code: normalizeCountryCode(state.guest.country_code),
     message_text: message,
-    is_portugal: state.guest.country_code === "PT"
+    is_portugal: normalizeCountryCode(state.guest.country_code) === "PT"
   };
 
   const { error } = await supabase.from("chat_messages").insert(payload);
@@ -515,13 +571,118 @@ function appendChatMessage(row) {
   const el = document.createElement("article");
   el.className = `chat-message ${row.is_portugal ? "portugal-user" : ""}`;
 
-  const supporter = row.is_portugal ? " · Portugal Supporter" : "";
+  const rowCountryCode = normalizeCountryCode(row.country_code);
+  const supporter = row.is_portugal ? " · GOAT fan" : "";
   el.innerHTML = `
-    <div class="msg-meta">${flagEmoji(row.country_code)} ${row.guest_name} (${countryName(row.country_code)})${supporter}</div>
+    <div class="msg-meta">${flagEmoji(rowCountryCode)} ${row.guest_name} (${countryName(rowCountryCode)})${supporter}</div>
     <div class="msg-body"></div>
   `;
   el.querySelector(".msg-body").textContent = row.message_text;
 
   ui.chatMessages.appendChild(el);
   ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
+}
+
+async function loadWinnerPoll() {
+  await Promise.all([loadWinnerTeamOptions(), loadWinnerSummary()]);
+}
+
+async function loadWinnerTeamOptions() {
+  if (!ui.winnerTeamSelect) return;
+
+  const { data, error } = await supabase
+    .from("matches")
+    .select("home_team, away_team");
+
+  if (error) {
+    ui.winnerTeamSelect.innerHTML = `<option value="">Could not load teams</option>`;
+    return;
+  }
+
+  const teams = new Set();
+  (data || []).forEach((row) => {
+    if (row.home_team) teams.add(row.home_team);
+    if (row.away_team) teams.add(row.away_team);
+  });
+
+  const sortedTeams = Array.from(teams).sort((a, b) => {
+    if (a === "Portugal" && b !== "Portugal") return -1;
+    if (a !== "Portugal" && b === "Portugal") return 1;
+    return a.localeCompare(b);
+  });
+
+  ui.winnerTeamSelect.innerHTML = "<option value=\"\">Select your champion</option>";
+  sortedTeams.forEach((team) => {
+    const option = document.createElement("option");
+    option.value = team;
+    option.textContent = team;
+    ui.winnerTeamSelect.appendChild(option);
+  });
+}
+
+async function onWinnerVoteSubmit(event) {
+  event.preventDefault();
+  if (!state.guest) return toggleJoinModal(true);
+
+  const teamName = ui.winnerTeamSelect?.value;
+  if (!teamName) return;
+
+  ui.winnerVoteBtn.disabled = true;
+
+  const payload = {
+    guest_id: state.guest.guest_id,
+    guest_name: state.guest.display_name,
+    country_code: normalizeCountryCode(state.guest.country_code),
+    team_name: teamName
+  };
+
+  const { error } = await supabase
+    .from("winner_predictions")
+    .upsert(payload, { onConflict: "guest_id" });
+
+  ui.winnerVoteBtn.disabled = false;
+
+  if (error) {
+    alert(`Winner vote error: ${error.message}`);
+    return;
+  }
+
+  await loadWinnerSummary();
+}
+
+async function loadWinnerSummary() {
+  if (!ui.winnerSummary) return;
+
+  const { data, error } = await supabase
+    .from("winner_predictions")
+    .select("team_name");
+
+  if (error) {
+    ui.winnerSummary.textContent = "Could not load winner votes.";
+    return;
+  }
+
+  const rows = data || [];
+  const total = rows.length;
+  ui.winnerTotal.textContent = `${total} total votes`;
+
+  if (!total) {
+    ui.winnerSummary.textContent = "No winner votes yet.";
+    return;
+  }
+
+  const counts = {};
+  rows.forEach((row) => {
+    counts[row.team_name] = (counts[row.team_name] || 0) + 1;
+  });
+
+  const ranking = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+
+  ui.winnerSummary.innerHTML = ranking
+    .map(([team, count]) => {
+      return `<span class="winner-pill">${team}: <strong>${pct(count, total)}</strong></span>`;
+    })
+    .join("");
 }
